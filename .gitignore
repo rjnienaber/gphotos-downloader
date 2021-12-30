@@ -1,0 +1,6 @@
+.idea
+*.iml
+foo.db
+gphotos_downloader
+*.so
+*.sqlite*

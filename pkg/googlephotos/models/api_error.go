@@ -10,10 +10,19 @@ import (
 type ApiError struct {
 	Url        string
 	StatusCode int
-	Headers    map[string][]string
+	Headers    http.Header
 	Raw        string
 	Err        error
 	Response   apiErrorResponse
+}
+
+func NewApiError(resp *http.Response, responseBody []byte) ApiError {
+	return ApiError{
+		Url:        resp.Request.URL.String(),
+		StatusCode: resp.StatusCode,
+		Headers:    resp.Header,
+		Raw:        string(responseBody),
+	}
 }
 
 func (a ApiError) Error() string {
@@ -35,12 +44,7 @@ type apiErrorResponse struct {
 }
 
 func ParseErrorReponse(resp *http.Response, responseBody []byte) (err ApiError) {
-	err = ApiError{
-		Url:        resp.Request.URL.String(),
-		StatusCode: resp.StatusCode,
-		Headers:    resp.Header,
-		Raw:        string(responseBody),
-	}
+	err = NewApiError(resp, responseBody)
 
 	var errorResponse apiError
 	jsonErr := json2.Unmarshal(responseBody, &errorResponse)

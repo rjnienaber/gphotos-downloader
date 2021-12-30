@@ -35,7 +35,7 @@ type SearchDateFilter struct {
 }
 
 func (options *SearchOptions) Serialize() (reader io.Reader, err error) {
-	json, err := json2.Marshal(options)
+	json, err := json2.MarshalIndent(options, "", "  ")
 	reader = bytes.NewReader(json)
 	return
 }

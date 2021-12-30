@@ -2,7 +2,6 @@ package models
 
 import (
 	json2 "encoding/json"
-	"strings"
 	"time"
 )
 
@@ -49,16 +48,13 @@ type MediaItemVideo struct {
 	Status string  `json:"status,omitempty"`
 }
 
-func (m MediaItem) IsPhoto() bool {
-	return !strings.Contains(m.MimeType, "video")
-}
-
 func DeserializeMediaItemsJson(body []byte) (mediaItems MediaItems, err error) {
-	if err != nil {
-		return
-	}
-
 	mediaItems.Raw = string(body)
 	err = json2.Unmarshal(body, &mediaItems)
+	return
+}
+
+func DeserializeMediaItemJson(body []byte) (mediaItem MediaItem, err error) {
+	err = json2.Unmarshal(body, &mediaItem)
 	return
 }

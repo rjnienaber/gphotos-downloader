@@ -2,22 +2,24 @@ package googlephotos
 
 import (
 	"context"
-	"github.com/rjnienaber/gphotos_downloader/pkg/googlephotos/models"
-	"golang.org/x/oauth2"
+	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/rjnienaber/gphotos_downloader/pkg/googlephotos/models"
+	"github.com/rjnienaber/gphotos_downloader/pkg/utils"
+	"golang.org/x/oauth2"
 )
 
 type PhotosApi struct {
 	baseUrl string
 	client  *http.Client
-	logger  *log.Logger
+	logger  utils.Logger
 }
 
 type Options struct {
@@ -26,7 +28,7 @@ type Options struct {
 	Token                 *oauth2.Token
 	Client                *http.Client
 	TimeoutInMilliseconds int
-	Logger                *log.Logger
+	Logger                utils.Logger
 }
 
 func NewPhotosApi(options Options) PhotosApi {
@@ -51,6 +53,61 @@ func NewPhotosApi(options Options) PhotosApi {
 	}
 }
 
+func (api *PhotosApi) Get(mediaItemId string) (mediaItem models.MediaItem, err error) {
+	getUrl, err := api.buildUrl(fmt.Sprintf("/mediaItems/%s", mediaItemId), map[string][]string{})
+	if err != nil {
+		return
+	}
+
+	api.logger.Debug.Printf("getting media item from %s\n", getUrl.String())
+	response, err := api.client.Get(getUrl.String())
+	if err != nil {
+		return
+	}
+	defer utils.CheckClose(response.Body, &err)
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return
+	}
+
+	if isSuccessResponse(response) {
+		mediaItem, err = models.DeserializeMediaItemJson(responseBody)
+		return
+	}
+
+	return models.MediaItem{}, models.ParseErrorReponse(response, responseBody)
+}
+
+func (api *PhotosApi) BatchGet(mediaItemIds []string) (mediaItems models.MediaItemsResult, err error) {
+	queryString := map[string][]string{}
+	queryString["mediaItemIds"] = mediaItemIds
+
+	batchGetUrl, err := api.buildUrl("/mediaItems:batchGet", queryString)
+	if err != nil {
+		return
+	}
+
+	api.logger.Debug.Printf("getting list of media items from %s\n", batchGetUrl.String())
+	response, err := api.client.Get(batchGetUrl.String())
+	if err != nil {
+		return
+	}
+	defer utils.CheckClose(response.Body, &err)
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return
+	}
+
+	if isSuccessResponse(response) {
+		mediaItems, err = models.DeserializeMediaItemsResultJson(responseBody, mediaItemIds)
+		return
+	}
+
+	return models.MediaItemsResult{}, models.ParseErrorReponse(response, responseBody)
+}
+
 func (api *PhotosApi) List(options models.PagingOptions) (mediaItems models.MediaItems, err error) {
 	queryString := map[string][]string{}
 	queryString["pageSize"] = []string{strconv.Itoa(options.Size)}
@@ -61,11 +118,12 @@ func (api *PhotosApi) List(options models.PagingOptions) (mediaItems models.Medi
 		return
 	}
 
+	api.logger.Debug.Printf("getting list of media items from %s\n", listUrl.String())
 	response, err := api.client.Get(listUrl.String())
 	if err != nil {
 		return
 	}
-	defer checkClose(response.Body, &err)
+	defer utils.CheckClose(response.Body, &err)
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
@@ -85,11 +143,14 @@ func (api *PhotosApi) Search(options models.SearchOptions) (mediaItems models.Me
 	if err != nil {
 		return
 	}
-	response, err := api.client.Post(api.baseUrl+"/mediaItems:search", "application/json", bodyReader)
+
+	searchUrl := api.baseUrl + "/mediaItems:search"
+	api.logger.Debug.Printf("running search against %s\n", searchUrl)
+	response, err := api.client.Post(searchUrl, "application/json", bodyReader)
 	if err != nil {
 		return
 	}
-	defer checkClose(response.Body, &err)
+	defer utils.CheckClose(response.Body, &err)
 
 	responseBody, err := io.ReadAll(response.Body)
 	if err != nil {
@@ -104,37 +165,46 @@ func (api *PhotosApi) Search(options models.SearchOptions) (mediaItems models.Me
 	return models.MediaItems{}, models.ParseErrorReponse(response, responseBody)
 }
 
-func (api *PhotosApi) Download(item models.MediaItem) (filePath string, err error) {
+func (api *PhotosApi) Download(baseUrl string, isPhoto bool) (filePath string, err error) {
 	file, err := ioutil.TempFile("", "gphoto.*.tmp")
 	if err != nil {
-		log.Fatal(err)
+		api.logger.Error.Print(err)
 	}
 	defer func(err *error) {
 		if *err == nil {
 			// download was successful, so we want to retain the file and just close it
-			checkClose(file, err)
+			utils.CheckClose(file, err)
 		} else {
 			// download unsuccessful, so we want to clean up the temporary file
-			// it's a temporary file so just log the error and return the original err
 			removeError := os.Remove(file.Name())
 			if removeError != nil {
-				log.Printf("Error: %s\n", removeError.Error())
+				// it's a temporary file so just log the error and return the original err
+				api.logger.Error.Printf("Error: %s\n", removeError.Error())
 				return
 			}
 		}
 	}(&err)
 
-	downloadUrl := item.BaseUrl
-	if item.IsPhoto() {
-		downloadUrl += "=d"
+	if isPhoto {
+		baseUrl += "=d"
 	} else {
-		downloadUrl += "=dv"
+		baseUrl += "=dv"
 	}
-	response, err := api.client.Get(downloadUrl)
+
+	api.logger.Trace.Printf("retrieving media item from %s\n", baseUrl)
+	response, err := api.client.Get(baseUrl)
 	if err != nil {
 		return
 	}
-	defer checkClose(response.Body, &err)
+	defer utils.CheckClose(response.Body, &err)
+
+	if !isSuccessResponse(response) {
+		responseBody, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			return "", err
+		}
+		return "", models.NewApiError(response, responseBody)
+	}
 
 	_, err = file.ReadFrom(response.Body)
 	if err != nil {
@@ -145,31 +215,11 @@ func (api *PhotosApi) Download(item models.MediaItem) (filePath string, err erro
 	return
 }
 
-func (api *PhotosApi) buildUrl(resourceUrl string, queryString map[string][]string) (*url.URL, error) {
-	fullUrl, err := url.Parse(api.baseUrl + resourceUrl)
-	if err != nil {
-		return nil, err
-	}
-
-	q := fullUrl.Query()
-	for key, value := range queryString {
-		for _, v := range value {
-			if v != "" {
-				q.Set(key, v)
-			}
-		}
-	}
-	fullUrl.RawQuery = q.Encode()
-	return fullUrl, nil
+func (api *PhotosApi) buildUrl(resourceUrl string, queryString map[string][]string) (fullUrl *url.URL, err error) {
+	fullUrl, err = utils.BuildUrl(api.baseUrl+resourceUrl, queryString)
+	return
 }
 
 func isSuccessResponse(resp *http.Response) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
-}
-
-func checkClose(c io.Closer, err *error) {
-	cerr := c.Close()
-	if *err == nil {
-		*err = cerr
-	}
 }
