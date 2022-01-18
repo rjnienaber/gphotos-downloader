@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -24,7 +25,9 @@ func TestConvertApiMediaItemToDatabaseMediaItem(t *testing.T) {
 	assert.Equal(t, "Screenshot_20211227-094449_Settings.jpg", dbMediaItem.Filename)
 	assert.Equal(t, "cute photo", dbMediaItem.Description)
 	assert.False(t, dbMediaItem.Downloaded)
-	assert.Equal(t, "2021/12/27", dbMediaItem.LocalPath)
+
+	localPath := filepath.Join("2021", "12", "27")
+	assert.Equal(t, localPath, dbMediaItem.LocalPath)
 	assert.Equal(t, "Screenshot_20211227-094449_Settings.jpg", dbMediaItem.LocalFilename)
 	assert.Equal(t, 0, dbMediaItem.FileSize)
 
