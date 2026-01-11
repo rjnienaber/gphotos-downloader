@@ -114,7 +114,7 @@ func (j *DownloadJob) process() (err error) {
 
 func (j *DownloadJob) downloadItem(item database.MediaItem) (string, error) {
 	j.logger.Debug.Printf("(id: %s) downloading content of remote id '%s'", j.Id, item.RemoteId)
-	tmpFilepath, downloadError := j.api.Download(item.BaseUrl, item.IsPhoto())
+	tmpFilepath, downloadError := j.api.Download(j.rootDir, item.BaseUrl, item.IsPhoto())
 	if downloadError == nil {
 		return tmpFilepath, nil
 	}
@@ -147,7 +147,7 @@ func (j *DownloadJob) downloadItem(item database.MediaItem) (string, error) {
 	}
 
 	j.logger.Debug.Printf("(id: %s) attempting content download of remote id '%s' with new base url", j.Id, item.RemoteId)
-	tmpFilepath, err = j.api.Download(apiItem.BaseUrl, item.IsPhoto())
+	tmpFilepath, err = j.api.Download(j.rootDir, apiItem.BaseUrl, item.IsPhoto())
 	if err != nil {
 		j.logger.Error.Printf("(id: %s) downloading content of remote id '%s' failed: %s", j.Id, item.RemoteId, err.Error())
 		return "", err

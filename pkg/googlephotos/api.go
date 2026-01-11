@@ -165,8 +165,8 @@ func (api *PhotosApi) Search(options models.SearchOptions) (mediaItems models.Me
 	return models.MediaItems{}, models.ParseErrorReponse(response, responseBody)
 }
 
-func (api *PhotosApi) Download(baseUrl string, isPhoto bool) (filePath string, err error) {
-	file, err := ioutil.TempFile("", "gphoto.*.tmp")
+func (api *PhotosApi) Download(tmpDir string, baseUrl string, isPhoto bool) (filePath string, err error) {
+	file, err := ioutil.TempFile(tmpDir, "gphoto.*.tmp")
 	if err != nil {
 		api.logger.Error.Print(err)
 	}

@@ -54,7 +54,7 @@ func TestDownloadService_DownloadsASingleFile(t *testing.T) {
 	item := createMediaItemToDownload(t)
 
 	downloader := mockDownloader{
-		download: func(baseUrl string, isPhoto bool) (filePath string, err error) {
+		download: func(tmpDir string, baseUrl string, isPhoto bool) (filePath string, err error) {
 			assert.Equal(t, item.BaseUrl, baseUrl)
 			assert.Equal(t, item.IsPhoto(), isPhoto)
 
@@ -79,7 +79,7 @@ func TestDownloadService_DownloadsMultipleFiles(t *testing.T) {
 	itemTwo := createMediaItemToDownload(t)
 
 	downloader := mockDownloader{
-		download: func(baseUrl string, isPhoto bool) (filePath string, err error) {
+		download: func(tmpDir string, baseUrl string, isPhoto bool) (filePath string, err error) {
 			if itemOne.BaseUrl == baseUrl {
 				assert.Equal(t, itemOne.BaseUrl, baseUrl)
 				assert.Equal(t, itemOne.IsPhoto(), isPhoto)
@@ -112,7 +112,7 @@ func TestDownloadService_UpdatesBaseUrlIfIncorrect(t *testing.T) {
 	item := createMediaItemToDownload(t)
 	newBaseUrl := "https://lh3.googleusercontent.com/lr/AFBm1_bKC3xpsBsbtwcD3wKVcEMdwlf0Sk61"
 	downloader := mockDownloader{}
-	downloader.download = func(baseUrl string, isPhoto bool) (filePath string, err error) {
+	downloader.download = func(tmpDir string, baseUrl string, isPhoto bool) (filePath string, err error) {
 		if downloader.downloadCallCount == 1 {
 			assert.Equal(t, item.BaseUrl, baseUrl)
 			assert.Equal(t, item.IsPhoto(), isPhoto)
@@ -153,7 +153,7 @@ func TestDownloadService_UpdatesBaseUrlIfIncorrect(t *testing.T) {
 func TestDownloadService_HandlesNetworkFailureAndRetries(t *testing.T) {
 	item := createMediaItemToDownload(t)
 	downloader := mockDownloader{}
-	downloader.download = func(baseUrl string, isPhoto bool) (filePath string, err error) {
+	downloader.download = func(tmpDir string, baseUrl string, isPhoto bool) (filePath string, err error) {
 		if downloader.downloadCallCount < 3 {
 			return "", models.ApiError{StatusCode: 500}
 		}
@@ -181,7 +181,7 @@ func TestDownloadService_LogErrorInDatabase(t *testing.T) {
 	item := createMediaItemToDownload(t)
 
 	downloader := mockDownloader{
-		download: func(baseUrl string, isPhoto bool) (filePath string, err error) {
+		download: func(tmpDir string, baseUrl string, isPhoto bool) (filePath string, err error) {
 			return "", errors.New("invalid url")
 		},
 	}
