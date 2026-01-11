@@ -11,9 +11,10 @@ import (
 )
 
 // find non downloaded items
-//   chunk into groups of 50 and do batch get for new baseUrl
-//   update base url for each item
-//   send id to downloader (for each item)
+//
+//	chunk into groups of 50 and do batch get for new baseUrl
+//	update base url for each item
+//	send id to downloader (for each item)
 func createUndownloadedService(t *testing.T, downloader googlephotos.Downloader, queuer DownloaderQueuer) UndownloadedService {
 	db := database.CreateTestDatabase(t)
 	return NewUndownloadedService(downloader, db, queuer, db.Logger)
